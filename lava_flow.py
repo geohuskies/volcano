@@ -1,6 +1,10 @@
 # The code for erta_ale 
 # Jae Sung Kim
 # Some code block was referered from http://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html#raster-to-vector-line
+#python3 lava_flow.py dem_2000_32637.tif 665853.0 1527079.6 afar centerline_32637.shp
+
+#python3 lava_flow.py dem_2016_32637.tif 682650.0 1502370.0 verify centerline_2019.shp
+
 from osgeo import gdal, osr, ogr
 import sys, os, json, csv, shlex
 import numpy as np
@@ -48,8 +52,10 @@ def array2shp(array,outSHPfn,rasterfn,pixelValue):
     raster = gdal.Open(rasterfn)
     geotransform = raster.GetGeoTransform()
     pixelWidth = geotransform[1]
-    maxDistance = ceil(sqrt(2*pixelWidth*pixelWidth))
-    print(maxDistance)
+    #maxDistance = ceil(sqrt(2*pixelWidth*pixelWidth))
+    pixelHeight = geotransform[5]
+    maxDistance = ceil(np.sqrt(pixelWidth**2+pixelHeight**2))
+    
 
     count = 0
     roadList = np.where(array == pixelValue)
@@ -88,7 +94,7 @@ def array2shp(array,outSHPfn,rasterfn,pixelValue):
     line_WKT = multiline.ExportToWkt()
     return [line_WKT,maxDistance]
 
-resolution = list(range(30,91,1))
+resolution = list(range(30,121,1))
 input_layer = ogr.Open(sys.argv[5])
 i_layer = input_layer.GetLayer()
 pt_list = []
@@ -112,7 +118,7 @@ for i in range(len(resolution)):
 		input_dem = sys.argv[1]
 	else:
 		input_dem = 'ASTER_DEM_Clipped'+str(i)+'.tif'
-		cmd_0 = "gdalwarp {0} {1} -tr {2} {2} -overwrite".format(sys.argv[1], input_dem, resolution[i])
+		cmd_0 = "gdalwarp {0} {1} -tr {2} {2} -r bilinear -overwrite".format(sys.argv[1], input_dem, resolution[i])
 		args_0 = shlex.split(cmd_0)
 		p1=subprocess.Popen(args_0)	
 		p1.wait()
@@ -217,10 +223,14 @@ for i in range(len(resolution)):
 	for j in range(len(pt_list)): 
 		pt = Point(pt_list[j][0],pt_list[j][1])
 		dist=pt.distance(line_shapely)
+		
 		sum_dist = sum_dist + dist
 		dist_array.append(dist)
+
+
 	dist_ave = sum_dist / len(pt_list)
-	dist_list[resolution[i]] = dist_ave
+	rmse=np.sqrt(sum([(x-dist_ave)**2 for x in dist_array])/len(pt_list))
+	dist_list[resolution[i]] = rmse
 	dist_max[resolution[i]] = max(dist_array)
 
 	spatialRef = osr.SpatialReference()
