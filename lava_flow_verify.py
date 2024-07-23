@@ -1,9 +1,8 @@
 # The code for erta_ale 
 # Jae Sung Kim
 # Some code block was referered from http://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html#raster-to-vector-line
-# python3 lava_flow_2019.py dem_2016_32637.tif 683250.0 1502460.0 verify 2019_main_c.shp
 
-
+#python3 lava_flow_verify.py dem_2016_32637.tif 683250.0 1502406.0 verify_a lava_2019_main_centerline_1.shp
 
 from osgeo import gdal, osr, ogr
 import sys, os, json, csv, shlex
@@ -14,7 +13,6 @@ from osgeo.gdalconst import *
 import subprocess, time
 import itertools
 from math import sqrt, ceil, pow
-import fiona
 from shapely.geometry import shape, LineString, Point, MultiLineString
 from shapely.wkt import dumps, loads
 
@@ -94,7 +92,7 @@ def array2shp(array,outSHPfn,rasterfn,pixelValue):
     line_WKT = multiline.ExportToWkt()
     return [line_WKT,maxDistance]
 
-resolution = list(range(30,121,1))
+resolution = list(range(30,61,1))
 input_layer = ogr.Open(sys.argv[5])
 i_layer = input_layer.GetLayer()
 pt_list = []
@@ -218,18 +216,16 @@ for i in range(len(resolution)):
 	max_dist_list[resolution[i]] = result[1]
 	line_shapely = loads(line_WKT)
 	
-	sum_dist = 0
+	
 	dist_array=[]
 	for j in range(len(pt_list)): 
 		pt = Point(pt_list[j][0],pt_list[j][1])
 		dist=pt.distance(line_shapely)
-		
-		sum_dist = sum_dist + dist
 		dist_array.append(dist)
 
 
-	dist_ave = sum_dist / len(pt_list)
-	rmse=np.sqrt(sum([(x-dist_ave)**2 for x in dist_array])/len(pt_list))
+	#dist_ave = sum_dist / len(pt_list)
+	rmse=np.sqrt(sum([x**2 for x in dist_array])/len(pt_list))
 	dist_list[resolution[i]] = rmse
 	dist_max[resolution[i]] = max(dist_array)
 
@@ -279,14 +275,16 @@ for key, value in dist_list.items():
 		opt_resolution=key
 		print("resolution is"+str(key)+"m: average distance is "+str(value)+"(m)")	
 
-f = open('lava_distance_2019.csv', 'w')
+f = open(sys.argv[4]+'.csv', 'w')
 csv_file = csv.writer(f)
 csv_file.writerow(["optimal resolution, average distance(m)"])
 csv_file.writerow([str(opt_resolution)+","+str(min_dist)])
 csv_file.writerow(["resolution, average distance(m)"])
 
-for item in dist_list:
-	csv_file.writerow([str(item)+","+str(dist_list[item])])
+sorted_d = sorted(dist_list.items(), key=lambda x: x[1])
+
+for item in sorted_d:
+	csv_file.writerow([str(item)])
 
 f.close()
 
